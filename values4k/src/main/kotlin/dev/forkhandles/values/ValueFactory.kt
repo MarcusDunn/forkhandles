@@ -9,7 +9,7 @@ abstract class ValueFactory<DOMAIN : Value<PRIMITIVE>, PRIMITIVE : Any>(
     internal val parseFn: (String) -> PRIMITIVE,
     internal val showFn: (PRIMITIVE) -> String = { it.toString() },
     internal val onInvalid: ValueFactory<DOMAIN, PRIMITIVE>.(PRIMITIVE, Exception) -> Nothing = { _, e -> defaultOnInvalid(e) },
-    internal val onParseFailure: ValueFactory<DOMAIN, PRIMITIVE>.(String, Exception) -> Nothing = { _, e -> defaultOnInvalid(e) }
+    internal val onParseFailure: ValueFactory<DOMAIN, PRIMITIVE>.(String, Exception) -> Nothing = { _, e -> defaultOnInvalid(e) },
 ) {
     internal fun validate(value: PRIMITIVE): DOMAIN {
         validation?.check(value)
