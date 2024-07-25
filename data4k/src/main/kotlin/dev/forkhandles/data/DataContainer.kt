@@ -2,8 +2,11 @@ package dev.forkhandles.data
 
 import dev.forkhandles.values.Value
 import dev.forkhandles.values.ValueFactory
+import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KClass
+import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
+import kotlin.reflect.full.primaryConstructor
 import kotlin.reflect.jvm.isAccessible
 
 /**
@@ -48,8 +51,10 @@ abstract class DataContainer<DATA>(
 
     protected fun <OUT : Any> required(vararg metaData: Metadatum) = required<OUT, OUT>({ it }, { it }, *metaData)
 
-    protected fun <IN : Any, OUT : Value<IN>> required(factory: ValueFactory<OUT, IN>, vararg metaData: Metadatum) =
-        required(factory::of, { it.value }, *metaData)
+    protected fun <IN : Any, OUT : Value<IN>> required(
+        factory: ValueFactory<OUT, IN>,
+        vararg metaData: Metadatum
+    ) = required(factory.parse(), factory.show(), *metaData)
 
     /** Optional **/
 
@@ -57,16 +62,18 @@ abstract class DataContainer<DATA>(
         mapInFn: (OUT) -> NEXT,
         mapOutFn: (NEXT) -> OUT?,
         vararg metaData: Metadatum
-    ) =
-        property<NEXT?, OUT, OUT>(mapInFn, { it?.let(mapOutFn) }, *metaData)
+    ) = property<NEXT?, OUT, OUT>(mapInFn, { it?.let(mapOutFn) }, *metaData)
 
     protected fun <OUT, NEXT : Any> optional(mapInFn: (OUT) -> NEXT, vararg metaData: Metadatum) =
         optional(mapInFn, { error("no outbound mapping defined") }, *metaData)
 
     protected fun <OUT> optional(vararg metaData: Metadatum) = property<OUT?, OUT, OUT>({ it }, { it }, *metaData)
 
-    protected fun <IN : Any, OUT : Value<IN>> optional(factory: ValueFactory<OUT, IN>, vararg metaData: Metadatum) =
-        optional(factory::of, { it.value }, *metaData)
+    protected fun <IN : Any, OUT : Value<IN>> optional(
+        factory: ValueFactory<OUT, IN>,
+        vararg metaData: Metadatum
+    ) =
+        optional(factory.parse(), factory.show(), *metaData)
 
     /** Object **/
 
@@ -104,7 +111,7 @@ abstract class DataContainer<DATA>(
     protected fun <OUT> requiredList(vararg metaData: Metadatum) = requiredList<OUT, OUT>({ it }, { it }, *metaData)
 
     protected fun <IN : Any, OUT : Value<IN>> requiredList(factory: ValueFactory<OUT, IN>, vararg metaData: Metadatum) =
-        requiredList(factory::of, { it.value }, *metaData)
+        requiredList(factory.parse(), factory.show(), *metaData)
 
     @JvmName("listDataContainer")
     protected fun <OUT : DataContainer<DATA>?> requiredList(mapInFn: (DATA) -> OUT, vararg metaData: Metadatum) =
@@ -120,7 +127,7 @@ abstract class DataContainer<DATA>(
         optionalList<OUT, OUT & Any>({ it }, { it }, *metaData)
 
     protected fun <IN : Any, OUT : Value<IN>> optionalList(factory: ValueFactory<OUT, IN>, vararg metaData: Metadatum) =
-        optionalList(factory::of, { it.value }, *metaData)
+        optionalList(factory.parse(), factory.show(), *metaData)
 
     @JvmName("optionalListDataContainer")
     protected fun <OUT : DataContainer<DATA>?> optionalList(mapInFn: (DATA) -> OUT, vararg metaData: Metadatum) =
@@ -154,10 +161,36 @@ abstract class DataContainer<DATA>(
 
     private fun Any.kClass() = this::class as KClass<DataContainer<DATA>>
 
+    private fun <IN : Any, OUT : Value<IN>> ValueFactory<OUT, IN>.parse(): (IN) -> OUT = {
+        when (it) {
+            is String, is Boolean, is Number -> parse(it.toString())
+            else -> of(it)
+        }
+    }
+
+    private fun <IN : Any, OUT : Value<IN>> ValueFactory<OUT, IN>.show(): (OUT) -> IN = {
+        when (it.value) {
+            is String, is Boolean, is Number, is ByteArray -> it.value
+            else -> show(it) as IN
+        }
+    }
+
+    /**
+     * Update container with the given property updated to the given value
+     */
+    inline fun <reified NEXT : DataContainer<DATA>, PROP> updateWith(property: KProperty1<NEXT, PROP>, value: PROP) {
+        property.isAccessible = true
+
+        NEXT::class.primaryConstructor?.call(unwrap())?.let {
+            @Suppress("UNCHECKED_CAST")
+            (property.getDelegate(it) as ReadWriteProperty<NEXT, PROP>).setValue(it, property, value)
+        } ?: error("No constructor defined in ${NEXT::class}")
+    }
+
     /** Deprecated **/
 
     @Deprecated("renamed", ReplaceWith("requiredData( *metaData)"))
-    protected fun data(vararg metaData: Metadatum) = requiredData( *metaData)
+    protected fun data(vararg metaData: Metadatum) = requiredData(*metaData)
 
     @Deprecated("renamed", ReplaceWith("requiredList(mapInFn, mapOutFn, *metaData)"))
     protected fun <OUT, IN> list(
@@ -179,7 +212,7 @@ abstract class DataContainer<DATA>(
     @JvmName("listDataContainerDeprecated")
     @Deprecated("renamed", ReplaceWith("requiredList(mapInFn,  *metaData)"))
     protected fun <OUT : DataContainer<DATA>?> list(mapInFn: (DATA) -> OUT, vararg metaData: Metadatum) =
-        requiredList(mapInFn,  *metaData)
+        requiredList(mapInFn, *metaData)
 
     @Deprecated("renamed", ReplaceWith("requiredObj(mapInFn, mapOutFn, *metaData)"))
     protected fun <OUT : DataContainer<DATA>> obj(
@@ -191,6 +224,4 @@ abstract class DataContainer<DATA>(
     @Deprecated("renamed", ReplaceWith("Customize Toolbar..."))
     protected fun <OUT : DataContainer<DATA>> obj(mapInFn: (DATA) -> OUT, vararg metaData: Metadatum) =
         requiredObj(mapInFn, *metaData)
-
 }
-

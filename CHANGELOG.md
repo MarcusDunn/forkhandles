@@ -3,6 +3,35 @@
 This list is not intended to be all-encompassing - it will document major and breaking API changes with their rationale
 when appropriate:
 
+### v2.19.0.0
+- **all** : Upgrade of dependencies including Kotlin to v2 and gradle.
+- **result4k** : Add fold and bidimap functions
+
+- **data4k** [Fix] Problem with deserialisation of numeric value types (due to int/long coercion by Jackson
+
+### v2.18.0.1
+- **data4k** [Fix] Problem with deserialisation of numeric value types (due to int/long coercion by Jackson
+
+### v2.18.0.0
+- **data4k** Make DataContainer contents mutable as chaining does not work otherwise.
+- **data4k** Added updateWith() method to DataContainer to allow making a update of objects with an updated field
+
+### v2.17.0.0
+- **data4k** [Possible Break] DataContainers make a copy of their content data on construction. 
+- **data4k** Added copy() method to DataContainer to allow making a copy of objects with an updated field
+
+## v2.16.1.0
+- **data4k** Finalise methods (should have been non-open)
+
+### v2.16.0.1
+- **data4k** Fix serialisation of booleans.
+
+### v2.16.0.0
+- **data4k** [Unlikely Break] : Better support for values4k tiny types - we use the correct representation as per the show method if there is a non-primitive datatype underneath the covers.
+
+### v2.15.2.0
+- **all** : Upgrade of dependencies and gradle. Convert build to kotlin.
+
 ### v2.15.1.0
 - **data4k** : Rename methods for consistency. Old methods have been deprecated.
 

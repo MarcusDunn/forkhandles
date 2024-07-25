@@ -1,22 +1,25 @@
 package dev.forkhandles.lens
 
+import com.oneeyedmen.okeydoke.Approver
 import dev.forkhandles.data.MapDataContainer
 import dev.forkhandles.lens.ContainerMeta.bar
 import dev.forkhandles.lens.ContainerMeta.foo
+import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 import java.math.BigInteger
 
-class GrandchildMap(propertySet: Map<String, Any?>) : MapDataContainer(propertySet), GrandchildFields {
+class GrandchildMap(propertySet: MutableMap<String, Any?>) : MapDataContainer(propertySet), GrandchildFields {
     override var long by required<Long>()
 }
 
-class ChildMap(propertySet: Map<String, Any?>) : MapDataContainer(propertySet), ChildFields<GrandchildMap> {
+class ChildMap(propertySet: MutableMap<String, Any?>) : MapDataContainer(propertySet), ChildFields<GrandchildMap> {
     override var string by required<String>()
     override var noSuch by required<String>()
     override var grandchild by requiredObj(::GrandchildMap)
 }
 
-class MapBacked(map: Map<String, Any?>) : MapDataContainer(map), MainClassFields<ChildMap, GrandchildMap, MutableMap<String, Any?>> {
+class MapBacked(map: MutableMap<String, Any?>) : MapDataContainer(map),
+    MainClassFields<ChildMap, GrandchildMap, MutableMap<String, Any?>> {
     override var standardField = "foobar"
     override var string by required<String>(foo, bar)
     override var boolean by required<Boolean>(foo, bar)
@@ -30,7 +33,7 @@ class MapBacked(map: Map<String, Any?>) : MapDataContainer(map), MainClassFields
     override var mapped by required(String::toInt, Int::toString, foo, bar)
 
     override var list by requiredList<String>(foo, bar)
-    override var listValue by requiredList(MyType, foo, bar)
+    override var listValue by requiredList(LocalDateType, foo, bar)
     override var listSubClass by requiredList(::ChildMap, foo, bar)
     override var listInts by requiredList<Int>(foo, bar)
     override val listMapped by requiredList(Int::toString, foo, bar)
@@ -39,6 +42,11 @@ class MapBacked(map: Map<String, Any?>) : MapDataContainer(map), MainClassFields
 
     override var value by required(MyType, foo, bar)
     override var requiredData by requiredData(foo, bar)
+
+    override var longValue by optional(LongType)
+    override var stringValue by required(StringType)
+    override var localDateValue by required(LocalDateType)
+    override var booleanValue by required(BooleanType)
 
     override var optional by optional<String>(foo, bar)
     override var optionalList by optionalList<String>(foo, bar)
@@ -56,4 +64,11 @@ class MapDataContainerTest : DataContainerContract<ChildMap, GrandchildMap, Muta
     override fun container(input: Map<String, Any?>) = MapBacked(data(input))
     override fun childContainer(input: Map<String, Any?>) = ChildMap(data(input))
     override fun grandchildContainer(input: Map<String, Any?>) = GrandchildMap(data(input))
+
+    @Test
+    override fun `can update an arbitrary value`(approver: Approver) {
+        val input = childContainer(emptyMap())
+        input.updateWith(MapBacked::stringValue, StringType.of("123"))
+        approver.assertApproved(input.toString())
+    }
 }

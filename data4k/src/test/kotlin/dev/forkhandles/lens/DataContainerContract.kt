@@ -7,8 +7,17 @@ import dev.forkhandles.data.Metadatum
 import dev.forkhandles.data.PropertyMetadata
 import dev.forkhandles.lens.ContainerMeta.bar
 import dev.forkhandles.lens.ContainerMeta.foo
+import dev.forkhandles.values.BooleanValue
+import dev.forkhandles.values.BooleanValueFactory
 import dev.forkhandles.values.IntValue
 import dev.forkhandles.values.IntValueFactory
+import dev.forkhandles.values.LocalDateValue
+import dev.forkhandles.values.LocalDateValueFactory
+import dev.forkhandles.values.LongValue
+import dev.forkhandles.values.LongValueFactory
+import dev.forkhandles.values.StringValue
+import dev.forkhandles.values.StringValueFactory
+import dev.forkhandles.values.minValue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
 import strikt.api.expectThat
@@ -18,6 +27,11 @@ import strikt.assertions.isNull
 import strikt.assertions.message
 import java.math.BigDecimal
 import java.math.BigInteger
+import java.time.LocalDate
+import java.time.LocalDate.EPOCH
+import java.time.LocalDate.MAX
+import java.time.LocalDate.MIN
+import java.time.LocalDate.of
 import kotlin.reflect.KMutableProperty0
 import kotlin.reflect.full.starProjectedType
 
@@ -39,7 +53,7 @@ interface MainClassFields<C : ChildFields<G>, G : GrandchildFields, CONTENT> {
     var list: List<String>
     var listSubClass: List<C>
     var listInts: List<Int>
-    var listValue: List<MyType>
+    var listValue: List<LocalDateType>
     val listMapped: List<String>
 
     var subClass: C
@@ -56,6 +70,27 @@ interface MainClassFields<C : ChildFields<G>, G : GrandchildFields, CONTENT> {
     var optionalMappedList: List<Int>?
     var optionalData: CONTENT?
     var requiredData: CONTENT
+
+    var longValue: LongType?
+    var booleanValue: BooleanType
+    var stringValue: StringType
+    var localDateValue: LocalDateType
+}
+
+class LongType private constructor(value: Long) : LongValue(value) {
+    companion object : LongValueFactory<LongType>(::LongType, 0L.minValue)
+}
+
+class BooleanType private constructor(value: Boolean) : BooleanValue(value) {
+    companion object : BooleanValueFactory<BooleanType>(::BooleanType)
+}
+
+class LocalDateType private constructor(value: LocalDate) : LocalDateValue(value) {
+    companion object : LocalDateValueFactory<LocalDateType>(::LocalDateType)
+}
+
+class StringType private constructor(value: String) : StringValue(value) {
+    companion object : StringValueFactory<StringType>(::StringType)
 }
 
 enum class ContainerMeta : Metadatum {
@@ -99,6 +134,10 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
                 "mapped" to "123",
                 "optionalValue" to 123,
                 "optional" to "optional",
+                "stringValue" to "stringValue",
+                "booleanValue" to true,
+                "localDateValue" to "1999-12-31",
+                "longValue" to 1,
             )
         )
 
@@ -116,6 +155,10 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
         expectThat(input.mapped).isEqualTo(123)
         expectThrows<ClassCastException> { container(mapOf("mapped" to 123)).mapped }
         expectThat(input.value).isEqualTo(MyType.of(123))
+        expectThat(input.stringValue).isEqualTo(StringType.of("stringValue"))
+        expectThat(input.longValue).isEqualTo(LongType.of(1))
+        expectThat(input.localDateValue).isEqualTo(LocalDateType.of(of(1999, 12, 31)))
+        expectThat(input.booleanValue).isEqualTo(BooleanType.of(true))
 
         expectThat(input.optional).isEqualTo("optional")
         expectThat(container(mapOf()).optional).isNull()
@@ -125,7 +168,7 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
     }
 
     @Test
-    fun `can write primitives values`() {
+    fun `can write primitives values`(approver: Approver) {
         val input = container(
             mapOf(
                 "string" to "string",
@@ -138,6 +181,10 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
 
                 "optionalValue" to 123,
                 "optional" to "optional",
+                "localDateValue" to "1999-12-31",
+                "stringValue" to "stringValue",
+                "booleanValue" to true,
+                "longValue" to 1
             )
         )
 
@@ -147,10 +194,16 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
         expectSetWorks(input::int, 999)
         expectSetWorks(input::long, 0)
         expectSetWorks(input::double, 5.4536)
+        expectSetWorks(input::stringValue, StringType.of("123"))
+        expectSetWorks(input::longValue, LongType.of(123))
+        expectSetWorks(input::localDateValue, LocalDateType.of(of(1999, 12, 12)))
+        expectSetWorks(input::booleanValue, BooleanType.of(false))
 
         expectSetWorks(input::optional, "123123")
         expectSetWorks(input::optional, null)
         expectSetWorks(input::mapped, 123)
+
+        approver.assertApproved(input.toString())
     }
 
     @Test
@@ -175,7 +228,7 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
     }
 
     @Test
-    fun `read and write data values`() {
+    fun `read and write data values`(approver: Approver) {
         val inner = data(mutableMapOf("name" to "string"))
         val outer = container(mapOf("requiredData" to inner))
 
@@ -183,6 +236,8 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
         expectThat(outer.optionalData).isNull()
         outer.optionalData = inner
         expectThat(outer.optionalData).isEqualTo(inner)
+
+        approver.assertApproved(inner.toString())
     }
 
     @Test
@@ -225,7 +280,7 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
                 "list" to listOf("string1", "string2"),
                 "listInts" to listOf(1, 2, 3),
                 "listMapped" to listOf(123, 456),
-                "listValue" to listOf(1, 2, 3),
+                "listValue" to listOf(MAX, MIN, EPOCH).map { it.toString() },
                 "listSubClass" to listOf(
                     mapOf("string" to "string1"),
                     mapOf("string" to "string2"),
@@ -236,7 +291,7 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
         expectThat(input.list).isEqualTo(listOf("string1", "string2"))
         expectThat(input.listMapped).isEqualTo(listOf("123", "456"))
         expectThat(input.listInts).isEqualTo(listOf(1, 2, 3))
-        expectThat(input.listValue).isEqualTo(listOf(1, 2, 3).map(MyType::of))
+        expectThat(input.listValue).isEqualTo(listOf(MAX, MIN, EPOCH).map(LocalDateType::of))
         expectThat(input.listSubClass.map { it.string }).isEqualTo(listOf("string1", "string2"))
 
         expectThat(input.optionalList).isEqualTo(listOf("hello"))
@@ -244,7 +299,7 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
     }
 
     @Test
-    fun `write list values`() {
+    fun `write list values`(approver: Approver) {
         val input = container(
             mapOf(
                 "list" to listOf("string1", "string2"),
@@ -252,17 +307,19 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
                     mapOf("string" to "string1"),
                     mapOf("string" to "string2"),
                 ),
-                "listValue" to listOf(1, 2, 3),
+                "listValue" to listOf(MAX, MIN, EPOCH).map { it.toString() },
                 "optionalList" to listOf("hello")
             )
         )
 
         expectSetWorks(input::list, listOf("123"))
         expectSetWorks(input::listSubClass, listOf(childContainer(mapOf("123" to "123"))))
-        expectSetWorks(input::listValue, listOf(MyType.of(123), MyType.of(456)))
+        expectSetWorks(input::listValue, listOf(LocalDateType.of(MAX), LocalDateType.of(MIN), LocalDateType.of(EPOCH)))
         expectSetWorks(input::optionalSubClassList, listOf(childContainer(mapOf("123" to "123"))))
         expectSetWorks(input::optionalValueList, listOf(MyType.of(123), MyType.of(456)))
         expectSetWorks(input::optionalList, listOf("hello"))
+
+        approver.assertApproved(input.toString())
     }
 
     @Test
@@ -283,4 +340,7 @@ abstract class DataContainerContract<C : ChildFields<G>, G : GrandchildFields, C
         prop.set(value)
         expectThat(prop.get()).isEqualTo(value)
     }
+
+    @Test
+    abstract fun `can update an arbitrary value`(approver: Approver)
 }
